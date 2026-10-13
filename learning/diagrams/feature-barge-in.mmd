@@ -1,0 +1,23 @@
+%% Barge-in. Sources: app/session.py:119-126 (_on_media), 142-148 (on_transcript), 182-183 (new_turn),
+%% 197-212 (barge_in), 214-228 (_finalize_turn); app/vad.py:93-106 (SpeechOnsetDetector.feed).
+flowchart TD
+    M["media frame"] --> M1{"bot_speaking?"}
+    M1 -- no --> M0["only STT gets it"]
+    M1 -- yes --> M2["onset.feed(ulaw_to_pcm16(audio))"]
+    M2 --> M3{"speech_ms >= BARGE_IN_MIN_SPEECH_MS<br/>and not fired?"}
+    M3 -- yes --> BI["barge_in('vad')"]
+    M3 -- no --> M0
+    T["on_transcript(text,...)"] --> T1{"text and bot_speaking and<br/>words >= BARGE_IN_MIN_WORDS?"}
+    T1 -- yes --> BI2["barge_in('stt')"]
+    E["_end_user_turn"] --> E1{"merge rule applies?"}
+    E1 -- no, and task in flight or bot_speaking --> BI3["barge_in('new_turn')"]
+    BI --> G
+    BI2 --> G
+    BI3 --> G
+    G{"bot_speaking or task running?"} -- no --> NOP["return (nothing to interrupt)"]
+    G -- yes --> C1["task.cancel()  (no await yet)"]
+    C1 --> C2["_finalize_turn(interrupted=True)<br/>history += sent[:played]"]
+    C2 --> C3["bot_speaking=False; onset.reset()"]
+    C3 --> C4["send {'event':'clear'} -> Twilio flushes buffer"]
+    C4 --> C5["await task (suppress CancelledError)"]
+    C5 --> L["late marks for this turn: index 'end' resets flags,<br/>_finalize_turn is a no-op (already finalized)"]

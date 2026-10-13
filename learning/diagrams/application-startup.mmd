@@ -1,0 +1,32 @@
+%% Startup. Sources: app/config.py:10 (load_dotenv at import), app/main.py:76-147 (create_app, lifespan),
+%% app/main.py:51-73 (build_deps), app/factory.py:16-26 (build_agent), app/rag.py:147-153, app/tools.py:85-148.
+flowchart TD
+    A["uvicorn app.main:app"] --> B["import app.main"]
+    B --> C["import app.config<br/>load_dotenv() runs"]
+    C --> D["module-level: app = create_app()<br/>routes defined, no I/O"]
+    D --> E["lifespan startup"]
+    E --> F{"deps passed in?<br/>(tests/fake_server.py does)"}
+    F -- yes --> R
+    F -- no --> G["Settings.from_env()"]
+    G -->|bad int/float| X1["ValueError: startup fails"]
+    G --> H["build_deps(settings)"]
+    H --> I["factory.build_agent"]
+    I --> I1{"LLM_API_KEY set?"}
+    I1 -- no --> X2["RuntimeError: startup fails"]
+    I1 -- yes --> I2["AsyncOpenAI(api_key, base_url)"]
+    I2 --> I3{"EMBEDDINGS_ENABLED?"}
+    I3 -- yes --> I4["EmbeddingIndex"]
+    I3 -- no --> I5["embeddings=None"]
+    I4 --> I6
+    I5 --> I6["KnowledgeBase.from_directory(data/kb)<br/>load_markdown_chunks + BM25"]
+    I6 --> I7["await kb.build_embeddings()<br/>network only if enabled"]
+    I7 --> I8["build_default_tools(kb, orders.json)"]
+    I8 --> I9["Agent(llm, model, tools)"]
+    I9 --> J{"TTS_PROVIDER"}
+    J -- elevenlabs --> J1["ElevenLabsTTS<br/>raises if key empty"]
+    J -- other --> J2["DeepgramTTS<br/>raises if key empty"]
+    J1 --> K
+    J2 --> K["SessionDeps(stt_factory=lambda, vad_factory=lambda,<br/>LatencyLogger creates logs/, transcript_dir)"]
+    K --> R["app.state.deps set; log 'ready: ...'"]
+    R --> S["serve requests"]
+    S --> T["lifespan shutdown: await deps.tts.aclose()"]

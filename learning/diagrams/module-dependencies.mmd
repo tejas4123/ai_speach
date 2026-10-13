@@ -1,0 +1,41 @@
+%% Internal import graph (verified with grep of "from ." imports in app/*.py).
+%% Arrows point from importer to imported module. External libs shown at the bottom.
+graph TD
+    main --> config
+    main --> factory
+    main --> latency
+    main --> session
+    main --> stt
+    main --> tts
+    main --> vad
+    factory --> agent
+    factory --> config
+    factory --> rag
+    factory --> tools
+    session --> audio
+    session --> config
+    session --> latency
+    session --> pii
+    session --> stt
+    session --> text
+    session --> tts
+    session --> vad
+    agent --> tools
+    tools --> rag
+    vad --> audio
+    subgraph External
+        fastapi[[fastapi]]
+        websockets[[websockets]]
+        httpx[[httpx]]
+        openai[[openai]]
+        numpy[[numpy]]
+        dotenv[[python-dotenv]]
+    end
+    main -.-> fastapi
+    main -.-> httpx
+    stt -.-> websockets
+    tts -.-> httpx
+    factory -.-> openai
+    config -.-> dotenv
+    audio -.-> numpy
+    rag -.-> numpy

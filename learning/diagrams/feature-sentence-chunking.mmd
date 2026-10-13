@@ -1,0 +1,17 @@
+%% SentenceChunker.feed. Source: app/text.py:25-70. Tests: test_units.py::test_chunker_*
+flowchart TD
+    F["feed(delta)"] --> B["buffer += delta"]
+    B --> S["_find_sentence_cut:<br/>regex [.!?।]+ quotes/brackets* whitespace+"]
+    S --> AB{"last word before match in<br/>ABBREVIATIONS (dr, rs, mr ...)?"}
+    AB -- yes --> S2["try next match"]
+    S2 --> S
+    AB -- no --> CUT["cut = match.end()"]
+    S -->|no match| FC{"emitted == 0? (first chunk)"}
+    FC -- yes --> CL["_find_clause_cut:<br/>len(buffer) >= 40 and last ', ' at index >= 20"]
+    CL -->|found| CUT
+    CL -->|none| DONE["return out"]
+    FC -- no --> DONE
+    CUT --> CLN["clean_for_tts(chunk): strip markdown, collapse spaces"]
+    CLN --> EM["out.append; emitted += 1; loop again"]
+    EM --> S
+    FL["flush() at end of stream"] --> FL2["clean remaining buffer -> last chunk"]

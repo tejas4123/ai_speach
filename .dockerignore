@@ -1,0 +1,8 @@
+.venv
+.env
+logs
+samples
+tests
+docs
+*.wav
+__pycache__

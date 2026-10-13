@@ -1,0 +1,16 @@
+%% Early-endpointing merge. Source: app/session.py:159-186. Test: tests/test_session.py::test_early_endpointing_merges_turns
+sequenceDiagram
+    participant DG as Deepgram
+    participant CS as CallSession
+    participant RT as response_task (turn N)
+    DG->>CS: "I want to" (speech_final)
+    CS->>CS: history += user "I want to"
+    CS->>RT: _begin_turn -> LLM thinking (nothing sent yet)
+    DG->>CS: "return my earbuds" (speech_final)
+    CS->>CS: _end_user_turn: in_flight AND not sent AND not bot_speaking<br/>AND history[-1].role == "user"
+    CS->>RT: task.cancel(); await
+    CS->>CS: turn_finalized = True (discarded turn not logged)
+    CS->>CS: llm_text = history.pop().content + " " + new text
+    CS->>CS: history += user "I want to return my earbuds"
+    CS->>CS: _begin_turn (turn N+1)
+    Note over CS: If any sentence (even the filler) was already sent,<br/>the else-branch runs barge_in("new_turn") instead

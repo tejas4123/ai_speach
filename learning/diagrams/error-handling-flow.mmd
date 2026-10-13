@@ -1,0 +1,29 @@
+%% Where failures are caught. Sources: app/session.py:232-247 (_respond except*), app/tools.py:55-71,
+%% app/stt.py:116-120,129-135, app/main.py:135-142, app/tts.py:41-43.
+flowchart TD
+    subgraph Turn["_respond TaskGroup"]
+        PR["_produce: agent.stream_reply"] 
+        CO["_consume: tts.synthesize + send"]
+    end
+    PR -->|"LLM API error"| EG
+    CO -->|"TTS non-200 -> RuntimeError"| EG
+    CO -->|"transport send fails"| EG
+    EG["except* Exception<br/>log.error per exception"] --> FB["_play_sentence(FALLBACK_LINE)<br/>+ mark N:end"]
+    FB -->|fails too| LX["log.exception 'fallback line failed too'<br/>caller hears silence"]
+    Turn -->|"CancelledError (barge-in/close)<br/>BaseException: not caught"| CANC["task cancelled; barge_in/close awaits it<br/>with suppress(CancelledError, Exception)"]
+    subgraph Tools["ToolRegistry.call"]
+        T1{"unknown tool?"} -->|yes| J1["{error: unknown tool}"]
+        T2{"args not JSON?"} -->|yes| J2["{error: not valid JSON}"]
+        T3{"TypeError?"} -->|yes| J3["{error: bad arguments}"]
+        T4{"other Exception?"} -->|yes| J4["{error: tool failed}"]
+    end
+    J1 & J2 & J3 & J4 --> LLMSEES["returned to LLM as tool result;<br/>model explains to caller"]
+    subgraph STT["DeepgramSTT"]
+        S1["ConnectionClosed in _receive"] --> S1L["log warning; NO reconnect"]
+        S2["other Exception in _receive"] --> S2L["log.exception; loop ends"]
+        S3["ConnectionClosed in send"] --> S3L["log 'dropping audio'"]
+    end
+    subgraph WS["main.media_stream"]
+        W1["WebSocketDisconnect"] --> W1L["log; finally session.close()"]
+        W2["json.loads error"] --> W2L["propagates; finally session.close()"]
+    end

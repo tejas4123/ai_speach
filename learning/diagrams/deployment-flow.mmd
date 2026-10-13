@@ -1,0 +1,19 @@
+%% Deployment options. Sources: README.md (Quick start), Dockerfile, .dockerignore.
+%% No CI/CD config exists in the repo. Cloud deploy (EC2) is only a plan in docs/BUILD_PLAN.md.
+flowchart TD
+    subgraph Local["Local dev (documented)"]
+        L1["python -m venv .venv; pip install -r requirements-dev.txt"] --> L2["cp .env.example .env; fill keys"]
+        L2 --> L3["pytest -q (offline)"]
+        L3 --> L4["uvicorn app.main:app --port 8000"]
+        L4 --> L5a["scripts/simulate_call.py (no phone)"]
+        L4 --> L5b["ngrok http 8000 -> set PUBLIC_HOST"]
+        L5b --> L6["Twilio console: number webhook -> https://PUBLIC_HOST/voice"]
+        L5b --> L7["or curl POST /call with X-Demo-Token"]
+    end
+    subgraph Docker["Container (Dockerfile)"]
+        D1["FROM python:3.12-slim"] --> D2["pip install -r requirements.txt"]
+        D2 --> D3["COPY app, data<br/>(.dockerignore excludes .env, tests, logs, samples, docs)"]
+        D3 --> D4["CMD uvicorn ... --host 0.0.0.0 --port 8000 --ws-ping-interval 20"]
+        D4 --> D5["env vars must be passed at runtime (-e / --env-file)"]
+    end
+    NOCI["No CI/CD pipeline in repo (verified)"]

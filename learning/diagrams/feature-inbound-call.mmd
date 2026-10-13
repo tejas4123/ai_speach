@@ -1,0 +1,22 @@
+%% Inbound call setup. Sources: app/main.py:93-108 (stream_twiml, voice), main.py:131-142 (media_stream),
+%% app/session.py:73-93 (__init__), session.py:110-117 (_on_start), app/stt.py:86-97 (start).
+sequenceDiagram
+    participant Caller
+    participant TW as Twilio
+    participant API as main.voice
+    participant MS as main.media_stream
+    participant CS as CallSession
+    participant DG as Deepgram
+    Caller->>TW: dials Twilio number
+    TW->>API: POST /voice
+    API-->>TW: TwiML Connect Stream url=wss://PUBLIC_HOST/media-stream
+    TW->>MS: WebSocket upgrade
+    MS->>MS: ws.accept()
+    MS->>CS: CallSession(WebSocketTransport(ws), deps)<br/>stt_factory(), vad_factory()
+    TW->>MS: {"event":"connected"} (ignored)
+    TW->>MS: {"event":"start", streamSid, callSid}
+    MS->>CS: handle_event -> _on_start
+    CS->>DG: stt.start(self): websockets.connect(listen?...)
+    DG-->>CS: connected; _receive + _keepalive tasks
+    CS->>CS: _begin_turn(text_source=_static_text(greeting))
+    Note over CS,TW: greeting flows through the normal _respond pipeline (turn 1)

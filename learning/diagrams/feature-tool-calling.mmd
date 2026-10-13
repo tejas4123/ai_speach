@@ -1,0 +1,23 @@
+%% Agent tool loop. Sources: app/agent.py:62-129 (stream_reply), app/tools.py:55-71 (ToolRegistry.call),
+%% tools.py:89-107 (tool functions). Tests: test_units.py::test_agent_runs_tools_then_answers, ::test_tools
+flowchart TD
+    S["stream_reply(history)"] --> R["round_no in 0..max_tool_rounds (3)"]
+    R --> A{"round_no < 3 and tools registered?"}
+    A -- yes --> K1["kwargs.tools = registry.schemas()"]
+    A -- no --> K2["no tools (forces a text answer)"]
+    K1 --> C
+    K2 --> C["await client.chat.completions.create(stream=True,<br/>messages=[system, *history])"]
+    C --> L["async for chunk"]
+    L --> D1{"delta.content?"}
+    D1 -- yes --> Y["yield text (to SentenceChunker)"]
+    L --> D2{"delta.tool_calls?"}
+    D2 -- yes --> F{"spoke_anything?"}
+    F -- no --> FY["yield filler 'One moment, let me check that. '"]
+    F -- yes --> ACC
+    FY --> ACC["calls[tc.index]: set id/name,<br/>arguments += fragment"]
+    L --> END{"stream done: any calls?"}
+    END -- no --> RET["return (turn text complete)"]
+    END -- yes --> G["asyncio.gather(registry.call(name, args) ...)"]
+    G --> TC["ToolRegistry.call: lookup, json.loads, await fn(**kwargs)<br/>errors -> JSON {error}"]
+    TC --> H["history += assistant{tool_calls}<br/>history += tool{tool_call_id, content} each"]
+    H --> R

@@ -1,0 +1,42 @@
+{
+  "KE1001": {
+    "status": "out for delivery",
+    "items": ["boAt Airdopes 141 earbuds"],
+    "amount_rupees": 1299,
+    "payment": "UPI",
+    "expected_delivery": "today by 8 PM",
+    "city": "Ghaziabad"
+  },
+  "KE1002": {
+    "status": "shipped",
+    "items": ["Redmi Note 13 5G, 8GB/256GB"],
+    "amount_rupees": 18999,
+    "payment": "credit card, no-cost EMI 6 months",
+    "expected_delivery": "in 2 days",
+    "city": "Noida"
+  },
+  "KE1003": {
+    "status": "delivered",
+    "items": ["Philips air fryer HD9200"],
+    "amount_rupees": 6499,
+    "payment": "cash on delivery",
+    "delivered_on": "4 days ago",
+    "city": "Delhi"
+  },
+  "KE1004": {
+    "status": "return picked up, refund pending quality check",
+    "items": ["HP wireless mouse"],
+    "amount_rupees": 699,
+    "payment": "debit card",
+    "refund_eta": "2 working days after quality check, then 5 to 7 working days for the bank",
+    "city": "Gurugram"
+  },
+  "KE1005": {
+    "status": "cancelled by customer before shipping",
+    "items": ["Samsung 43 inch 4K smart TV"],
+    "amount_rupees": 28990,
+    "payment": "UPI",
+    "refund_status": "refunded to UPI",
+    "city": "Faridabad"
+  }
+}

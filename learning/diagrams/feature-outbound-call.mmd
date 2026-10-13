@@ -1,0 +1,20 @@
+%% Outbound call. Source: app/main.py:110-129. After Twilio connects, flow is identical to feature-inbound-call.
+sequenceDiagram
+    participant U as You (curl)
+    participant API as main.outbound_call
+    participant TWR as Twilio REST
+    participant Phone as Your phone
+    participant MS as WS /media-stream
+    U->>API: POST /call {"to": "+91..."} X-Demo-Token
+    API->>API: check token (401) + Twilio creds (500)
+    API->>TWR: POST /Accounts/SID/Calls.json<br/>To, From, Twiml=stream_twiml(request)
+    alt status >= 300
+        TWR-->>API: error
+        API-->>U: 502 detail
+    else ok
+        TWR-->>API: {sid, status}
+        API-->>U: 200 {call_sid, status}
+        TWR->>Phone: rings
+        Phone-->>TWR: answered
+        TWR->>MS: opens Media Stream (see feature-inbound-call)
+    end

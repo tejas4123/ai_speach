@@ -1,0 +1,17 @@
+%% Authentication. Source: app/main.py:105-142. Only /call is protected (shared demo token).
+%% /voice and /media-stream are NOT authenticated (see learning/11-known-issues-and-risks.md S2, S3).
+flowchart TD
+    R["Incoming request"] --> P{"Path"}
+    P -- "GET /health" --> OK1["200 {status: ok}<br/>no auth"]
+    P -- "/voice" --> V["return TwiML<br/>no auth, no X-Twilio-Signature check"]
+    P -- "WS /media-stream" --> W["ws.accept()<br/>no auth"]
+    P -- "POST /call" --> B{"body valid JSON with 'to'?"}
+    B -- no --> E422["422 validation error"]
+    B -- yes --> T{"DEMO_API_TOKEN non-empty AND<br/>X-Demo-Token == it?"}
+    T -- no --> E401["401 set DEMO_API_TOKEN..."]
+    T -- yes --> C{"Twilio SID, token, number set?"}
+    C -- no --> E500["500 Twilio credentials not configured"]
+    C -- yes --> TW["POST Twilio Calls.json<br/>basic auth (SID, auth token)"]
+    TW --> S{"status < 300?"}
+    S -- no --> E502["502 Twilio error text"]
+    S -- yes --> OK2["200 {call_sid, status}"]

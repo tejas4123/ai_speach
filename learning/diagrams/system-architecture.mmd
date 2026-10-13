@@ -1,0 +1,36 @@
+%% System architecture. Sources: app/main.py (routes, build_deps), app/session.py (CallSession),
+%% app/stt.py, app/tts.py, app/agent.py, app/tools.py, app/rag.py, app/vad.py, app/latency.py.
+%% Dashed = optional / config-dependent.
+flowchart LR
+    Caller((Caller phone)) <-->|PSTN| Twilio[Twilio]
+    subgraph Server["FastAPI process (uvicorn app.main:app)"]
+        Voice["POST /voice<br/>main.voice"]
+        Call["POST /call<br/>main.outbound_call"]
+        MS["WS /media-stream<br/>main.media_stream"]
+        CS["CallSession<br/>session.py"]
+        VAD["SpeechOnsetDetector<br/>EnergyVAD | SileroVAD"]
+        AG["Agent.stream_reply<br/>agent.py"]
+        TR["ToolRegistry<br/>tools.py"]
+        KB["KnowledgeBase<br/>BM25 + EmbeddingIndex"]
+        CH["SentenceChunker<br/>text.py"]
+        LAT["LatencyLogger<br/>latency.py"]
+    end
+    Twilio -->|webhook| Voice
+    Voice -->|TwiML Connect/Stream| Twilio
+    Call -->|"REST Calls.json"| Twilio
+    Twilio <-->|"JSON events, base64 mu-law"| MS
+    MS -->|handle_event| CS
+    CS -->|audio bytes| DG_STT[(Deepgram Listen wss)]
+    DG_STT -->|Results / UtteranceEnd| CS
+    CS -->|pcm16 while bot_speaking| VAD
+    CS -->|history| AG
+    AG <-->|chat.completions stream| LLM[(OpenAI-compatible LLM)]
+    AG --> TR
+    TR --> ORD[(data/orders.json)]
+    TR --> KB
+    KB -.->|embeddings.create| LLM
+    CS --> CH
+    CH -->|sentence| TTS[(Deepgram Speak / ElevenLabs)]
+    TTS -->|mu-law chunks| CS
+    CS --> LAT --> LOGS[(logs/latency.jsonl)]
+    CS --> TX[(logs/transcripts/CALLSID.json)]

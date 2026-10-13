@@ -1,0 +1,53 @@
+%% NOT A DATABASE. This project has no DB/ORM. These are the in-memory and file data shapes.
+%% Sources: data/orders.json, app/rag.py:44-71 (Chunk), app/session.py:73-93 (CallSession fields),
+%% app/latency.py:26-62, app/session.py:305-313 (transcript file).
+erDiagram
+    ORDERS_JSON ||--o{ ORDER : "keyed by order_id"
+    ORDER {
+        string order_id PK "KE1001..KE1005"
+        string status
+        list items
+        int amount_rupees
+        string payment
+        string city
+        string expected_delivery "optional"
+        string refund_eta "optional"
+    }
+    KB_MARKDOWN_FILE ||--|{ CHUNK : "one per ## section"
+    CHUNK {
+        string id PK "stem#index"
+        string title
+        string text
+        list tokens
+    }
+    CALL_SESSION ||--o{ HISTORY_MESSAGE : "sent to LLM"
+    CALL_SESSION ||--o{ TRANSCRIPT_TURN : "saved on close"
+    CALL_SESSION ||--o{ TURN_TIMER : "one per bot turn"
+    CALL_SESSION {
+        string call_sid
+        string stream_sid
+        int turn_no
+        bool bot_speaking
+        int played
+    }
+    HISTORY_MESSAGE {
+        string role "user|assistant|tool"
+        string content
+        list tool_calls "assistant only"
+        string tool_call_id "tool only"
+    }
+    TRANSCRIPT_TURN {
+        string role
+        string text "always redacted"
+        bool interrupted "assistant only"
+    }
+    TURN_TIMER ||--|| LATENCY_ROW : "written to latency.jsonl"
+    LATENCY_ROW {
+        string call_sid
+        int turn
+        bool interrupted
+        float llm_ttft_ms
+        float first_sentence_ms
+        float tts_ttfb_ms
+        float server_total_ms
+    }

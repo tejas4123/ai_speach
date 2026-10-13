@@ -1,0 +1,16 @@
+%% Sent vs heard. Sources: app/session.py:128-138 (_on_mark), 271-279 (_play_sentence), 214-228 (_finalize_turn).
+%% Test: tests/test_session.py::test_barge_in_from_transcript_keeps_only_what_was_heard
+sequenceDiagram
+    participant CS as CallSession
+    participant TW as Twilio buffer
+    participant Caller
+    CS->>TW: media (sentence 0 audio)
+    CS->>TW: mark "2:0"   (sent = [s0])
+    CS->>TW: media (sentence 1 audio)
+    CS->>TW: mark "2:1"   (sent = [s0, s1])
+    TW->>Caller: plays s0
+    TW-->>CS: mark "2:0"  -> played = 1
+    Caller->>CS: starts talking (VAD / interim words)
+    CS->>CS: barge_in: history += sent[:played] = [s0]
+    CS->>TW: clear (s1 never played)
+    TW-->>CS: leftover marks "2:1","2:end" -> ignored for history (turn already finalized)

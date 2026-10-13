@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "voice-agent",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["app.main:app", "--port", "8001", "--ws-ping-interval", "20"],
+      "port": 8001
+    }
+  ]
+}

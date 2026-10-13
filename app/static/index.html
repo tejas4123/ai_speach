@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Agent Phone</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #667085; --line: #e4e7ec;
+    --accent: #2f6fed; --accent-text: #ffffff; --bot: #eef2f7; --user: #2f6fed; --user-text: #fff;
+    --ok: #12a150; --warn: #d97706; --bad: #d92d20;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e8eb; --muted: #98a2b3; --line: #2a313b;
+      --accent: #5b8cff; --bot: #222832; --user: #3b6ff0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 32px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; flex: 1; min-width: 200px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+           padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .grid { display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  #chat { height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+  .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.assistant { background: var(--bot); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.user { background: var(--user); color: var(--user-text); align-self: flex-end; border-bottom-right-radius: 4px; }
+  .tag { display: inline-block; font-size: 11px; margin-left: 6px; padding: 0 6px; border-radius: 6px;
+         background: var(--warn); color: #fff; vertical-align: middle; }
+  .empty { color: var(--muted); margin: auto; text-align: center; }
+  form { display: flex; gap: 8px; margin-top: 12px; }
+  input[type=text] { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 8px;
+                     border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: var(--muted); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .dot.on { background: var(--ok); } .dot.talk { background: var(--accent); } .dot.bad { background: var(--bad); }
+  .meter { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); margin-top: 4px; }
+  .meter > div { height: 100%; width: 0; background: var(--ok); transition: width 60ms linear; }
+  label.opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 8px 0; color: var(--text); }
+  #log { font: 12px/1.5 ui-monospace, Menlo, monospace; height: 170px; overflow-y: auto; color: var(--muted);
+         white-space: pre-wrap; overflow-wrap: anywhere; }
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="flex:1;min-width:200px">
+      <h1>Voice Agent Phone</h1>
+      <div class="sub">Talks to <code>/browser-stream</code> exactly like Twilio Media Streams: 8 kHz mu-law in 20 ms frames, marks, clear.</div>
+    </div>
+    <input id="token" type="password" placeholder="DEMO_API_TOKEN" autocomplete="off" aria-label="Demo token"
+           style="width:170px;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text)">
+    <button id="startBtn" class="primary">Start call</button>
+    <button id="stopBtn" class="danger" disabled>Hang up</button>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Conversation</h2>
+      <div id="chat"><div class="empty" id="empty">Press <b>Start call</b>. Asha greets you, then speak or type.</div></div>
+      <form id="typeForm">
+        <input id="typeInput" type="text" placeholder="Type instead of speaking, e.g. where is my order KE1002" autocomplete="off" disabled>
+        <button id="sendBtn" disabled>Send</button>
+      </form>
+      <div class="hint">Typed text skips speech-to-text and enters the session as a finished caller turn. Everything after that (LLM, tools, TTS, barge-in) is the real pipeline.</div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Status</h2>
+        <div class="row"><span>Connection</span><span id="conn"><i class="dot"></i>idle</span></div>
+        <div class="row"><span>Bot</span><span id="bot"><i class="dot"></i>silent</span></div>
+        <div class="row"><span>Turn</span><span id="turn">–</span></div>
+        <div class="row"><span>Last voice-to-voice</span><span id="lat">–</span></div>
+        <div class="row"><span>Barge-ins (clear)</span><span id="clears">0</span></div>
+        <div style="margin-top:8px;font-size:13px;color:var(--muted)">Mic level</div>
+        <div class="meter"><div id="meter"></div></div>
+        <label class="opt"><input type="checkbox" id="micOn" checked> Send microphone audio</label>
+        <label class="opt"><input type="checkbox" id="halfDuplex"> Mute mic while bot speaks (use on speakers; disables barge-in)</label>
+        <div class="hint">Use headphones for barge-in. On laptop speakers the bot can hear itself and interrupt.</div>
+      </section>
+      <section class="panel">
+        <h2>Protocol log</h2>
+        <div id="log"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const RATE = 8000, FRAME = 160;               // 20 ms of 8 kHz audio
+  const $ = id => document.getElementById(id);
+  const streamSid = "MZbrowser" + Math.random().toString(16).slice(2, 10);
+
+  // ---------------------------------------------------------------- mu-law (G.711)
+  const DECODE = new Int16Array(256);
+  for (let b = 0; b < 256; b++) {
+    const u = ~b & 0xff, sign = u & 0x80, exp = (u >> 4) & 7, mant = u & 0x0f;
+    const s = (((mant << 3) + 0x84) << exp) - 0x84;
+    DECODE[b] = sign ? -s : s;
+  }
+  function encodeSample(s) {
+    let sign = 0;
+    if (s < 0) { sign = 0x80; s = -s; }
+    if (s > 32635) s = 32635;
+    s += 0x84;
+    let exp = 7;
+    for (let mask = 0x4000; (s & mask) === 0 && exp > 0; exp--, mask >>= 1) {}
+    const mant = (s >> (exp + 3)) & 0x0f;
+    return ~(sign | (exp << 4) | mant) & 0xff;
+  }
+  const b64encode = bytes => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+  const b64decode = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+
+  // ---------------------------------------------------------------- state
+  let ws = null, ctx = null, micStream = null, workletNode = null;
+  let resamplePos = 0, frameBuf = [], seq = 0;
+  let sources = [], playEnd = 0, pendingMarks = [], markTimer = null;
+  let botSpeaking = false, clears = 0, lastTurn = 0;
+  let lastLoudAt = 0, typedAt = 0, waitingForReply = false;
+
+  function log(line) {
+    const el = $("log");
+    el.textContent += new Date().toLocaleTimeString() + "  " + line + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
+  function setStatus(id, cls, text) { $(id).innerHTML = `<i class="dot ${cls}"></i>${text}`; }
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+  // ---------------------------------------------------------------- outbound audio (caller -> server)
+  function sendFrame(bytes) {
+    seq++;
+    send({ event: "media", streamSid, sequenceNumber: String(seq),
+           media: { track: "inbound", chunk: String(seq), timestamp: String(seq * 20), payload: b64encode(bytes) } });
+  }
+
+  function onMicSamples(input, inRate) {
+    // Box-filter downsample to 8 kHz (averaging also acts as a crude low-pass).
+    const ratio = inRate / RATE;
+    const muted = !$("micOn").checked || ($("halfDuplex").checked && botSpeaking);
+    let peak = 0;
+    while (resamplePos + ratio <= input.length) {
+      const a = Math.floor(resamplePos), b = Math.floor(resamplePos + ratio);
+      let sum = 0;
+      for (let i = a; i < b; i++) sum += input[i];
+      const v = muted ? 0 : sum / Math.max(1, b - a);
+      peak = Math.max(peak, Math.abs(v));
+      frameBuf.push(encodeSample(Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
+      resamplePos += ratio;
+      if (frameBuf.length === FRAME) { sendFrame(Uint8Array.from(frameBuf)); frameBuf = []; }
+    }
+    resamplePos -= input.length;
+    $("meter").style.width = Math.min(100, peak * 300) + "%";
+    if (peak > 0.05 && !botSpeaking) lastLoudAt = performance.now();
+  }
+
+  const WORKLET = `
+    class Tap extends AudioWorkletProcessor {
+      process(inputs) { const ch = inputs[0][0]; if (ch) this.port.postMessage(ch.slice(0)); return true; }
+    }
+    registerProcessor("tap", Tap);`;
+
+  async function startMic() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    } catch (e) {
+      if (!ctx) return;  // call already ended
+      log("microphone unavailable (" + e.name + "): sending silence, use the text box");
+      $("micOn").checked = false;
+      return startSilence();
+    }
+    if (!ctx) { micStream.getTracks().forEach(t => t.stop()); micStream = null; return; }
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
+    await ctx.audioWorklet.addModule(url);
+    const src = ctx.createMediaStreamSource(micStream);
+    workletNode = new AudioWorkletNode(ctx, "tap");
+    workletNode.port.onmessage = e => onMicSamples(e.data, ctx.sampleRate);
+    src.connect(workletNode);
+    log("microphone on (" + ctx.sampleRate + " Hz -> 8000 Hz mu-law)");
+  }
+
+  let silenceTimer = null;
+  function startSilence() {
+    // Twilio streams continuously even when nobody talks; mimic that.
+    const silent = new Uint8Array(FRAME).fill(0xff);
+    silenceTimer = setInterval(() => sendFrame(silent), 20);
+  }
+
+  // ---------------------------------------------------------------- inbound audio (server -> caller)
+  function playChunk(bytes) {
+    const buf = ctx.createBuffer(1, bytes.length, RATE);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bytes.length; i++) data[i] = DECODE[bytes[i]] / 32768;
+    const node = ctx.createBufferSource();
+    node.buffer = buf;
+    node.connect(ctx.destination);
+    const start = Math.max(ctx.currentTime + 0.02, playEnd);
+    node.start(start);
+    playEnd = start + buf.duration;
+    sources.push(node);
+    node.onended = () => { sources = sources.filter(s => s !== node); };
+  }
+
+  function echoMark(name) { send({ event: "mark", streamSid, mark: { name } }); }
+
+  function tickMarks() {
+    const now = ctx ? ctx.currentTime : 0;
+    const due = pendingMarks.filter(m => m.at <= now);
+    pendingMarks = pendingMarks.filter(m => m.at > now);
+    for (const m of due) echoMark(m.name);
+  }
+
+  function clearPlayback() {
+    for (const s of sources) { try { s.stop(); } catch (_) {} }
+    sources = [];
+    playEnd = ctx.currentTime;
+    // Twilio returns marks for cleared audio straight away.
+    for (const m of pendingMarks) echoMark(m.name);
+    pendingMarks = [];
+  }
+
+  // ---------------------------------------------------------------- UI events from the server
+  function addMessage(entry) {
+    const empty = $("empty"); if (empty) empty.remove();
+    const div = document.createElement("div");
+    div.className = "msg " + entry.role;
+    div.textContent = entry.text;
+    if (entry.interrupted) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "interrupted"; div.appendChild(t); }
+    $("chat").appendChild(div);
+    $("chat").scrollTop = $("chat").scrollHeight;
+  }
+
+  function onMessage(ev) {
+    const msg = JSON.parse(ev.data);
+    switch (msg.event) {
+      case "media": {
+        if (waitingForReply) {
+          const from = typedAt || lastLoudAt;
+          if (from) $("lat").textContent = Math.round(performance.now() - from) + " ms";
+          waitingForReply = false; typedAt = 0;
+        }
+        playChunk(b64decode(msg.media.payload));
+        break;
+      }
+      case "mark":
+        pendingMarks.push({ name: msg.mark.name, at: playEnd });
+        log("mark sent by server: " + msg.mark.name);
+        break;
+      case "error":
+        log("server refused the call: " + msg.message + " (check the DEMO_API_TOKEN box)");
+        setStatus("conn", "bad", "unauthorized");
+        break;
+      case "clear":
+        clears++; $("clears").textContent = clears;
+        log("clear: bot audio flushed (barge-in)");
+        clearPlayback();
+        break;
+      case "ui_transcript":
+        addMessage(msg.entry);
+        break;
+      case "ui_state":
+        botSpeaking = msg.bot_speaking;
+        setStatus("bot", botSpeaking ? "talk" : "", botSpeaking ? "speaking" : "silent");
+        $("turn").textContent = msg.turn || "–";
+        if (msg.turn > lastTurn) { lastTurn = msg.turn; if (msg.turn > 1) waitingForReply = true; }
+        break;
+    }
+  }
+
+  // ---------------------------------------------------------------- call control
+  try { $("token").value = localStorage.getItem("demoToken") || ""; } catch (_) {}
+
+  async function startCall() {
+    try { localStorage.setItem("demoToken", $("token").value.trim()); } catch (_) {}
+    $("startBtn").disabled = true;
+    ctx = new AudioContext();
+    await ctx.resume();
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/browser-stream`);
+    setStatus("conn", "", "connecting…");
+    ws.onopen = async () => {
+      setStatus("conn", "on", "connected");
+      send({ event: "connected", protocol: "Call", version: "1.0.0" });
+      send({ event: "start", streamSid, start: { streamSid, callSid: "CAbrowser" + Date.now(),
+             customParameters: { token: $("token").value.trim() },
+             tracks: ["inbound"], mediaFormat: { encoding: "audio/x-mulaw", sampleRate: 8000, channels: 1 } } });
+      log("start sent, streamSid=" + streamSid);
+      markTimer = setInterval(tickMarks, 20);
+      await startMic();
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;  // refused or closed meanwhile
+      $("stopBtn").disabled = false; $("typeInput").disabled = false; $("sendBtn").disabled = false;
+      $("typeInput").focus();
+    };
+    ws.onmessage = onMessage;
+    ws.onclose = () => { setStatus("conn", "bad", "closed"); log("socket closed"); teardown(); };
+    ws.onerror = () => log("socket error (is the server running?)");
+  }
+
+  function teardown() {
+    clearInterval(markTimer); clearInterval(silenceTimer);
+    if (workletNode) workletNode.disconnect();
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (ctx) ctx.close();
+    ws = ctx = micStream = workletNode = null;
+    sources = []; pendingMarks = []; playEnd = 0; frameBuf = []; resamplePos = 0;
+    botSpeaking = false; lastTurn = 0;
+    setStatus("bot", "", "silent"); $("meter").style.width = "0";
+    $("startBtn").disabled = false; $("stopBtn").disabled = true;
+    $("typeInput").disabled = true; $("sendBtn").disabled = true;
+  }
+
+  function hangUp() {
+    send({ event: "stop", streamSid });
+    log("stop sent");
+    setTimeout(() => ws && ws.close(), 200);
+  }
+
+  $("startBtn").onclick = startCall;
+  $("stopBtn").onclick = hangUp;
+  $("typeForm").onsubmit = e => {
+    e.preventDefault();
+    const text = $("typeInput").value.trim();
+    if (!text) return;
+    typedAt = performance.now();
+    send({ event: "ui_text", text });
+    log("typed turn: " + text);
+    $("typeInput").value = "";
+  };
+})();
+</script>
+</body>
+</html>

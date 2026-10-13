@@ -1,0 +1,37 @@
+%% One caller turn, happy path. Sources: app/main.py:131-142, app/session.py:97-287,
+%% app/stt.py:99-120, app/agent.py:62-129, app/text.py:31-53, app/tts.py:35-46.
+sequenceDiagram
+    autonumber
+    participant TW as Twilio
+    participant MS as main.media_stream
+    participant CS as CallSession
+    participant STT as DeepgramSTT
+    participant P as _produce
+    participant AG as Agent.stream_reply
+    participant C as _consume
+    participant TTS as TTS.synthesize
+    loop every 20 ms
+        TW->>MS: {"event":"media", payload}
+        MS->>CS: handle_event -> _on_media
+        CS->>STT: send(audio)
+    end
+    STT-->>CS: on_transcript(text, is_final=True, speech_final=True)
+    CS->>CS: _end_user_turn: join user_parts, redact(), history.append(user)
+    CS->>CS: _begin_turn: turn_no+=1, TurnTimer, create_task(_respond)
+    par TaskGroup
+        CS->>P: _produce(queue)
+        P->>AG: async for delta in stream_reply(history)
+        AG-->>P: text deltas
+        P->>P: SentenceChunker.feed(delta)
+        P->>C: queue.put(sentence)
+    and
+        C->>TTS: synthesize(sentence)
+        TTS-->>C: mu-law chunks
+        C->>TW: {"event":"media"} per chunk (bot_speaking=True)
+        C->>TW: {"event":"mark","name":"N:i"}
+    end
+    P->>C: queue.put(None)
+    C->>TW: {"event":"mark","name":"N:end"}
+    TW-->>CS: mark N:i (when played) -> played = i+1
+    TW-->>CS: mark N:end -> bot_speaking=False
+    CS->>CS: _finalize_turn(interrupted=False): history.append(assistant), latency row

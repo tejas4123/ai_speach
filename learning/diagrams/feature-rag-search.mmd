@@ -1,0 +1,14 @@
+%% KB search. Sources: app/tools.py:89-93, app/rag.py:40-41 (tokenize), 74-102 (BM25.search),
+%% 119-127 (EmbeddingIndex.search), 130-138 (reciprocal_rank_fusion), 155-160 (KnowledgeBase.search).
+flowchart TD
+    Q["search_knowledge_base(query)"] --> KS["KnowledgeBase.search(query, k=3)"]
+    KS --> B["BM25.search(query, k=6)<br/>tokenize: lowercase, [a-z0-9]+, drop stopwords<br/>score = sum idf * f*(k1+1)/(f + k1*(1-b+b*dl/avgdl))<br/>keep score > 0, sort desc"]
+    B --> E{"embeddings enabled and matrix built?"}
+    E -- no --> L["lexical[:3]"]
+    E -- yes --> V["EmbeddingIndex.search(k=6)<br/>embed query (API call), normalize, cosine = matrix @ q"]
+    V --> F["reciprocal_rank_fusion([lexical, semantic])<br/>score += 1/(60 + rank + 1)"]
+    F --> T["fused[:3]"]
+    L --> O{"any results?"}
+    T --> O
+    O -- no --> N["{results: [], note: 'Nothing relevant found...'}"]
+    O -- yes --> Y["{results: [chunk.text, ...]}"]
